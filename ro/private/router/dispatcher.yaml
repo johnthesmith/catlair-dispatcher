@@ -1,0 +1,3 @@
+# Маршуртизатор Resolver
+library: dispatcher_api.php
+class: \catlair\DispatcherApi

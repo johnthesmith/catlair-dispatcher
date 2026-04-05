@@ -1,0 +1,5 @@
+# Overall config for any contents
+# Put this file in default content folder only
+product-version: dev
+cd-moment: now
+cd-person: "@johnthesmith"

@@ -1,0 +1,136 @@
+# Конфигурационный файл
+app:
+  log:
+    enabled: true
+    trap: false
+
+# Engine settings
+engine:
+  # Projects pathes for components searchig like files, payloads etc
+  projects:
+  - ./
+  - ../default
+  # default arguments
+  default:
+    # For undefined route will be use followng route
+    route-name: make
+
+# Web settings 
+web:
+  # Механизм вызова удаленных полезных нагрузок
+  summon:
+    # Хосты исполнители на которых будет перенаправлен вызов
+    hosts:
+    - http://localhost:42003
+    - http://localhost:42004
+    - http://localhost:42005
+
+    # Количество попыток вызова пэйлоада при отказе хостов
+    # фактически количество хостов которые будут использованы 
+    # далее будет возвращена ошибка
+    try: 4
+
+    # Время в секундах ожидаемого возвращения в ротацию сервисов
+    # За указанной время penalty медленного сервиса будет уменшено до 0
+    # Умолчальное значние 10
+    recovery-time-sec: 10
+
+    # таймаут исполнения для пэйлоада
+    # если таймаут не задан то используется defaultResuestTimeoutMls
+    resuest-timeout-mls:
+      "dispatcher/collect-payload": 1000
+
+    # Умолчальный таймаут для запроса summon
+    default-request-timeout-mls: 1000
+
+  default:
+    # default context
+    context: [ default ]
+
+  # Session settings
+  session:
+    # Disable or enable session 
+    enabled: false
+    # Time to live for session cookie
+    ttl-sec: 86400
+    # This is default secure key
+    ssl-key: MySecureKey
+
+  # Маршрутизация запросов по REMOTE_ADDR
+  # Обработка:
+  #   IP-диапазон
+  #   0.0.0.0/0 по порядку до первого совпадения
+  #     Host
+  #     Выбор секци по полному совпадению заголовка Host
+  #     * - all
+  #       Path 
+  #       перебор path из url по порядку до совпадения
+  #       * - all
+  #         Если значение payload/method - выполнить payload/method
+  # Если значение ~ или не наден - выполнить payload из URL
+  rules:
+    # из локальной подсети или подсети докера
+    127.0.0.1/8, 172.17.0.0/16:
+      # для localhost
+      localhost:
+        # при пустом uri
+        "/":
+          # используем умолчальные uri и context
+          uri: /content/page/main.html
+          # используем умолчальный контекст
+          context: [ default ]
+          # трассировка по заоловкам включена
+          header:
+            trace: true
+        # любая иная ссылка как есть
+        "*":
+          header:
+            trace: true
+      # для всех хостов
+      dispatcher:
+        # любая ссылка уходит
+        "*":
+          # на диспетчер
+          action: dispatcher/dispatch
+          header:
+            trace: true
+      # все иные хосты
+      "*":
+        #для любого адреса
+        "*":
+          # уходят в ошибку
+          action: error/error404
+          header:
+            trace: true
+    # со всех инфых адресов
+    0.0.0.0/0:
+      # для всех хостов
+      "*":
+        # любая ссылка уходит
+        "*":
+          # на диспетчер
+          action: dispatcher/dispatch
+          header:
+            trace: false
+  # options for cli starting with `php index.php`
+  cli:
+    # url for cli mode
+    url: http://localhost
+
+# Настройки ползеных нагрузок
+payloads:
+  # Настройки конвейера cicd
+  cicd:
+  # Настройка диспетчеризации
+  dispatcher:
+    subcall:
+      # Имя заголовлка для учета subcall
+      header: X-Dispatcher-Subcall-Count
+      # Лимит глубины вызовов воркеров
+      limit: 20
+      #  Режим трассировки вызовов в заголовок X-Trace
+      trace: true
+    payloads:
+    # Для неизвестных пэйлоадов будет вызван failback
+    failback:
+      payload: failback/default
