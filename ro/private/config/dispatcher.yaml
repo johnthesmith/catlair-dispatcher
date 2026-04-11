@@ -80,28 +80,24 @@ web:
           # используем умолчальный контекст
           context: [ default ]
           # трассировка по заоловкам включена
-          header:
-            trace: true
+          trace: true
         # любая иная ссылка как есть
         "*":
-          header:
-            trace: true
+          trace: true
       # для всех хостов
       dispatcher:
         # любая ссылка уходит
         "*":
           # на диспетчер
           action: dispatcher/dispatch
-          header:
-            trace: true
+          trace: true
       # все иные хосты
       "*":
         #для любого адреса
         "*":
           # уходят в ошибку
           action: error/error404
-          header:
-            trace: true
+          trace: true
     # со всех инфых адресов
     0.0.0.0/0:
       # для всех хостов
@@ -110,8 +106,7 @@ web:
         "*":
           # на диспетчер
           action: dispatcher/dispatch
-          header:
-            trace: false
+          trace: false
   # options for cli starting with `php index.php`
   cli:
     # url for cli mode
