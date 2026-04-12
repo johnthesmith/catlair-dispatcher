@@ -16,6 +16,8 @@ require_once LIB . '/core/web_bot.php';
 
 class DispatcherApi extends WebPayload
 {
+    const CONFIG = 'dispatcher.yaml';
+
     /**************************************************************************
         Методы API
     */
@@ -92,7 +94,7 @@ class DispatcherApi extends WebPayload
                 }
                 else
                 {
-                    $this -> proxy( $worker, $config );
+                    $this -> proxy( $worker );
                 }
 
                 $this -> stopSummonStat( $worker, $payloadName, $this -> getCode() );
@@ -323,145 +325,212 @@ class DispatcherApi extends WebPayload
 
 
 
-    /*
-        Метод проксирования текущего запроса
-    */
-    private function proxy
-    (
-        string $aHost,
-        array $aConfig
-    )
-    {
-        /* Определение url */
-        $url = $aHost . $_SERVER[ 'REQUEST_URI' ];
+//    /*
+//        Метод проксирования текущего запроса
+//    */
+//    private function proxy
+//    (
+//        string $aHost,
+//        array $aConfig
+//    )
+//    {
+//        /* Определение url */
+//        $url = $aHost . $_SERVER[ 'REQUEST_URI' ];
+//
+//        /* Сборка заголовков */
+//        $headers = $this -> getApp() -> getInHeaders();
+//
+//        /* Инициализация curl */
+//        $ch = curl_init();
+//
+//        /* Сборка заголовков для curl */
+//        $curlHeaders = [];
+//        foreach( $headers as $name => $value )
+//        {
+//            $curlHeaders[] = "$name: $value";
+//        }
+//
+//        /* Сборка тушки */
+//        $postFields = $_POST;
+//        if( !empty( $_FILES ))
+//        {
+//            /* Проксирование файлов */
+//            foreach ($_FILES as $key => $file)
+//            {
+//                $postFields[ $key ] = new CURLFile
+//                (
+//                    $file['tmp_name'],
+//                    $file['type'],
+//                    $file['name']
+//                );
+//            }
+//            curl_setopt( $ch, CURLOPT_POSTFIELDS, $postFields );
+//        }
+//        else
+//        {
+//            /* Проксирование тела запроса */
+//            $method = $_SERVER[ 'REQUEST_METHOD' ];
+//            if( $method !== 'GET' && $method !== 'HEAD' )
+//            {
+//                /* Передача сырого тела запроса */
+//                curl_setopt( $ch, CURLOPT_POSTFIELDS, file_get_contents('php://input'));
+//            }
+//        }
+//
+//        /* Установка параметров */
+//        curl_setopt_array
+//        (
+//            $ch,
+//            [
+//                CURLOPT_ENCODING => true,
+//                /* Вернуть ответ как строку */
+//                CURLOPT_RETURNTRANSFER => true,
+//                /* Включить заголовки в ответ */
+//                CURLOPT_HEADER => true,
+//                /* Не следовать редиректам */
+//                CURLOPT_FOLLOWLOCATION => false,
+//                /* Отключить проверку SSL сертификата */
+//                CURLOPT_SSL_VERIFYPEER => false,
+//                /* Отключить проверку имени хоста SSL */
+//                CURLOPT_SSL_VERIFYHOST => false,
+//                /* Использовать оригинальный HTTP метод */
+//                CURLOPT_CUSTOMREQUEST => $_SERVER[ 'REQUEST_METHOD' ],
+//                /* Передать оригинальные куки */
+//                CURLOPT_COOKIE => $_SERVER[ 'HTTP_COOKIE' ] ?? '',
+//                /* URL назначения */
+//                CURLOPT_URL => $url,
+//                /* Передать оригинальные заголовки */
+//                CURLOPT_HTTPHEADER => $curlHeaders,
+//                /* Общий таймаут 30 секунд */
+//                CURLOPT_TIMEOUT => 30,
+//                /* Таймаут соединения 5 секунд */
+//                CURLOPT_CONNECTTIMEOUT => 5
+//            ]
+//        );
+//
+//        /*
+//            Запрос CURL
+//        */
+//        $this -> getLog()
+//        -> begin( 'Proxy execute' )
+//        -> param( 'url', $url );
+//        $response = curl_exec( $ch );
+//        $this -> getLog() -> end();
+//
+//        /* Проверка результата запроса*/
+//        if( $response === false )
+//        {
+//            /* Отказ вызова */
+//            $this -> setResult
+//            (
+//                'proxy-call-error',
+//                [
+//                    'code' => curl_error( $ch ),
+//                    'message' => curl_error( $ch )
+//                ]
+//            );
+//        }
+//        else
+//        {
+//            /* Запрос выполнен */
+//            /* Извлеченеи заголовков из ответа */
+//            $headerSize = curl_getinfo( $ch, CURLINFO_HEADER_SIZE );
+//            $this -> setContent( substr( $response, $headerSize ));
+//            $rawHeaders = substr( $response, 0, $headerSize );
+//
+//            /* Преобразование строки заголовков в массив ключ => значение */
+//            $headerLines = explode("\r\n", trim($rawHeaders));
+//            $headers = [];
+//
+//            foreach( $headerLines as $line )
+//            {
+//                // Пропускаем пустые строки и строку статуса HTTP
+//                if ( !empty($line) ?? strpos( $line, 'HTTP/' ) !== 0)
+//                {
+//                    $parts = explode( ':', $line, 2 );
+//                    if( count($parts) === 2 )
+//                    {
+//                        $name = trim( $parts[ 0 ]);
+//                        $value = trim( $parts[ 1 ]);
+//                        $headers[ $name ] = $value;
+//                    }
+//                }
+//            }
+//
+//            /* Выгрузка заголовков итоговых */
+//            $this -> getApp() -> applyHeaders( $headers );
+//        }
+//        curl_close( $ch );
+//
+//
+//        return $this;
+//    }
 
-        /* Сборка заголовков */
+
+
+    public function proxy
+    (
+        string $targetUrl
+    ): self
+    {
         $headers = $this -> getApp() -> getInHeaders();
 
-        /* Инициализация curl */
-        $ch = curl_init();
+        /* Формируем запрос через WebBot */
+        $bot = WebBot::create( $this -> getLog() )
+        -> setUrl( Url::create() -> parse( $targetUrl . $_SERVER[ 'REQUEST_URI' ]))
+        -> setHeaders( $headers )
+        -> setRequestTimeoutMls( $this -> readSummonRequestTimeout());
 
-        /* Сборка заголовков для curl */
-        $curlHeaders = [];
-        foreach( $headers as $name => $value )
+        $method = $_SERVER[ 'REQUEST_METHOD' ];
+        switch( $method )
         {
-            $curlHeaders[] = "$name: $value";
-        }
-
-        /* Сборка тушки */
-        $postFields = $_POST;
-        if( !empty( $_FILES ))
-        {
-            /* Проксирование файлов */
-            foreach ($_FILES as $key => $file)
-            {
-                $postFields[ $key ] = new CURLFile
-                (
-                    $file['tmp_name'],
-                    $file['type'],
-                    $file['name']
-                );
-            }
-            curl_setopt( $ch, CURLOPT_POSTFIELDS, $postFields );
-        }
-        else
-        {
-            /* Проксирование тела запроса */
-            $method = $_SERVER[ 'REQUEST_METHOD' ];
-            if( $method !== 'GET' && $method !== 'HEAD' )
-            {
-                /* Передача сырого тела запроса */
-                curl_setopt( $ch, CURLOPT_POSTFIELDS, file_get_contents('php://input'));
-            }
-        }
-
-        /* Установка параметров */
-        curl_setopt_array
-        (
-            $ch,
-            [
-                CURLOPT_ENCODING => true,
-                /* Вернуть ответ как строку */
-                CURLOPT_RETURNTRANSFER => true,
-                /* Включить заголовки в ответ */
-                CURLOPT_HEADER => true,
-                /* Не следовать редиректам */
-                CURLOPT_FOLLOWLOCATION => false,
-                /* Отключить проверку SSL сертификата */
-                CURLOPT_SSL_VERIFYPEER => false,
-                /* Отключить проверку имени хоста SSL */
-                CURLOPT_SSL_VERIFYHOST => false,
-                /* Использовать оригинальный HTTP метод */
-                CURLOPT_CUSTOMREQUEST => $_SERVER[ 'REQUEST_METHOD' ],
-                /* Передать оригинальные куки */
-                CURLOPT_COOKIE => $_SERVER[ 'HTTP_COOKIE' ] ?? '',
-                /* URL назначения */
-                CURLOPT_URL => $url,
-                /* Передать оригинальные заголовки */
-                CURLOPT_HTTPHEADER => $curlHeaders,
-                /* Общий таймаут 30 секунд */
-                CURLOPT_TIMEOUT => 30,
-                /* Таймаут соединения 5 секунд */
-                CURLOPT_CONNECTTIMEOUT => 5
-            ]
-        );
-
-        /*
-            Запрос CURL
-        */
-        $this -> getLog()
-        -> begin( 'Proxy execute' )
-        -> param( 'url', $url );
-        $response = curl_exec( $ch );
-        $this -> getLog() -> end();
-
-        /* Проверка результата запроса*/
-        if( $response === false )
-        {
-            /* Отказ вызова */
-            $this -> setResult
-            (
-                'proxy-call-error',
-                [
-                    'code' => curl_error( $ch ),
-                    'message' => curl_error( $ch )
-                ]
-            );
-        }
-        else
-        {
-            /* Запрос выполнен */
-            /* Извлеченеи заголовков из ответа */
-            $headerSize = curl_getinfo( $ch, CURLINFO_HEADER_SIZE );
-            $this -> setContent( substr( $response, $headerSize ));
-            $rawHeaders = substr( $response, 0, $headerSize );
-
-            /* Преобразование строки заголовков в массив ключ => значение */
-            $headerLines = explode("\r\n", trim($rawHeaders));
-            $headers = [];
-
-            foreach( $headerLines as $line )
-            {
-                // Пропускаем пустые строки и строку статуса HTTP
-                if ( !empty($line) ?? strpos( $line, 'HTTP/' ) !== 0)
+            case 'POST':
+                $bot -> setPostParams( $_POST );
+                if( !empty( $_FILES ))
                 {
-                    $parts = explode( ':', $line, 2 );
-                    if( count($parts) === 2 )
-                    {
-                        $name = trim( $parts[ 0 ]);
-                        $value = trim( $parts[ 1 ]);
-                        $headers[ $name ] = $value;
-                    }
+                    $bot -> setPostParams
+                    (
+                        array_merge
+                        (
+                            $_POST,
+                            $this -> prepareFiles( $_FILES )
+                        )
+                    );
                 }
-            }
-
-            /* Выгрузка заголовков итоговых */
-            $this -> getApp() -> applyHeaders( $headers );
+            break;
+            case 'PUT':
+            case 'PATCH':
+                $bot -> setPostParams( file_get_contents( 'php://input' ));
+            break;
         }
-        curl_close( $ch );
 
+        $bot -> execute() -> resultTo( $this );
+
+        $this -> setContent( $bot -> getContent() );
+        $this -> getApp() -> applyHeaders( $bot -> getHeaders() );
 
         return $this;
+    }
+
+
+
+    private function prepareFiles
+    (
+        array $files
+    )
+    : array
+    {
+        $result = [];
+        foreach( $files as $key => $file )
+        {
+            $result[ $key ] = new CURLFile
+            (
+                $file['tmp_name'],
+                $file['type'],
+                $file['name']
+            );
+        }
+        return $result;
     }
 
 

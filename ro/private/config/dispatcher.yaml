@@ -21,9 +21,7 @@ web:
   summon:
     # Хосты исполнители на которых будет перенаправлен вызов
     hosts:
-    - http://localhost:42003
-    - http://localhost:42004
-    - http://localhost:42005
+    - http://localhost:42001
 
     # Количество попыток вызова пэйлоада при отказе хостов
     # фактически количество хостов которые будут использованы 
@@ -37,12 +35,9 @@ web:
 
     # таймаут исполнения для пэйлоада
     # если таймаут не задан то используется defaultResuestTimeoutMls
-    resuest-timeout-mls:
+    request-timeout-mls:
       "dispatcher/collect-payload": 1000
-
-    # Умолчальный таймаут для запроса summon
-    default-request-timeout-mls: 1000
-
+      "*": 1000
   default:
     # default context
     context: [ default ]
@@ -111,21 +106,3 @@ web:
   cli:
     # url for cli mode
     url: http://localhost
-
-# Настройки ползеных нагрузок
-payloads:
-  # Настройки конвейера cicd
-  cicd:
-  # Настройка диспетчеризации
-  dispatcher:
-    subcall:
-      # Имя заголовлка для учета subcall
-      header: X-Dispatcher-Subcall-Count
-      # Лимит глубины вызовов воркеров
-      limit: 20
-      #  Режим трассировки вызовов в заголовок X-Trace
-      trace: true
-    payloads:
-    # Для неизвестных пэйлоадов будет вызван failback
-    failback:
-      payload: failback/default
